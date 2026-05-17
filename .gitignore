@@ -1,0 +1,12 @@
+node_modules/
+.env
+dist/
+build/
+*.log
+.DS_Store
+__pycache__/
+*.pyc
+ai/saved_models/
+ai/data/
+frontend/dist/
+mobile/android/app/build/
