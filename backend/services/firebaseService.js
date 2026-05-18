@@ -1,5 +1,5 @@
 // ============================================
-// Firebase Service — Real-time Firestore DB
+// Firebase Service — Real-time Database (RTDB)
 // ============================================
 const admin = require('firebase-admin');
 const path = require('path');
@@ -12,21 +12,23 @@ let db = null;
  */
 function initFirebase() {
   if (admin.apps.length > 0) {
-    db = admin.firestore();
+    db = admin.database();
     return;
   }
 
   // Root directory contains the JSON credentials file
   const credentialsFile = path.join(__dirname, '..', '..', 'greenlinkplus-4c685-firebase-adminsdk-fbsvc-8b36f07b9a.json');
+  const databaseURL = process.env.FIREBASE_DATABASE_URL || "https://greenlinkplus-4c685-default-rtdb.firebaseio.com";
 
   try {
     if (fs.existsSync(credentialsFile)) {
-      console.log('[Firebase] Initializing via credentials JSON file...');
+      console.log(`[Firebase] Initializing RTDB via credentials JSON file at ${databaseURL}...`);
       admin.initializeApp({
-        credential: admin.credential.cert(require(credentialsFile))
+        credential: admin.credential.cert(require(credentialsFile)),
+        databaseURL: databaseURL
       });
     } else {
-      console.log('[Firebase] JSON credential file not found. Falling back to Environment Variables...');
+      console.log(`[Firebase] JSON credential file not found. Initializing RTDB via Environment Variables at ${databaseURL}...`);
       
       const privateKey = process.env.FIREBASE_PRIVATE_KEY
         ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
@@ -37,33 +39,33 @@ function initFirebase() {
           projectId: process.env.FIREBASE_PROJECT_ID,
           clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
           privateKey: privateKey
-        })
+        }),
+        databaseURL: databaseURL
       });
     }
 
-    db = admin.firestore();
-    db.settings({ ignoreUndefinedProperties: true });
-    console.log('[✓] Firebase Admin initialized successfully');
+    db = admin.database();
+    console.log('[✓] Firebase Realtime Database (RTDB) initialized successfully');
   } catch (err) {
-    console.error('[FATAL] Failed to initialize Firebase:', err.message);
+    console.error('[FATAL] Failed to initialize Firebase RTDB:', err.message);
   }
 }
 
 /**
- * Write a sensor data point to Firebase Firestore
+ * Write a sensor data point to Firebase Realtime Database (RTDB)
  */
 async function writeSensorData(nodeId, nodeType, sensorData) {
   if (!db) {
-    console.warn('[Firebase] Firestore not initialized, skipping write');
+    console.warn('[Firebase] RTDB not initialized, skipping write');
     return;
   }
 
   try {
-    const docRef = db.collection('sensor_data').doc();
-    await docRef.set({
+    const ref = db.ref('sensor_data').push();
+    await ref.set({
       node_id: nodeId,
       node_type: nodeType,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: Date.now(),
       temperature: sensorData.temperature,
       humidity: sensorData.humidity,
       pressure: sensorData.pressure,
@@ -76,52 +78,55 @@ async function writeSensorData(nodeId, nodeType, sensorData) {
       anomaly: sensorData.anomaly
     });
   } catch (err) {
-    console.error('[Firebase] Error writing sensor data point:', err.message);
+    console.error('[Firebase] Error writing sensor data point to RTDB:', err.message);
   }
 }
 
 /**
- * Query historical data for nodes from Firebase Firestore
+ * Query historical data for nodes from Firebase Realtime Database (RTDB)
  */
 async function getHistoricalData(nodeId, startTime, endTime, aggregateWindow = '5m') {
   if (!db) return [];
 
   try {
-    let query = db.collection('sensor_data')
-      .orderBy('timestamp', 'desc');
+    const ref = db.ref('sensor_data');
+    let query;
 
     if (nodeId && nodeId !== 'all') {
-      query = query.where('node_id', '==', nodeId);
+      query = ref.orderByChild('node_id').equalTo(nodeId).limitToLast(200);
+    } else {
+      query = ref.orderByChild('timestamp').limitToLast(200);
     }
 
-    const snapshot = await query.limit(200).get();
-    const results = snapshot.docs.map(doc => {
-      const data = doc.data();
-      const timeString = data.timestamp 
-        ? data.timestamp.toDate().toISOString() 
+    const snapshot = await query.once('value');
+    const results = [];
+
+    snapshot.forEach(child => {
+      const val = child.val();
+      const timeString = val.timestamp 
+        ? new Date(val.timestamp).toISOString() 
         : new Date().toISOString();
 
-      return {
+      results.push({
         _time: timeString,
-        node_id: data.node_id,
-        node_type: data.node_type,
-        temperature: data.temperature,
-        humidity: data.humidity,
-        pressure: data.pressure,
-        water_level: data.water_level,
-        soil_moisture: data.soil_moisture,
-        light_intensity: data.light_intensity,
-        pm25: data.pm25,
-        air_quality: data.air_quality,
-        filtered: data.filtered,
-        anomaly: data.anomaly
-      };
+        node_id: val.node_id,
+        node_type: val.node_type,
+        temperature: val.temperature,
+        humidity: val.humidity,
+        pressure: val.pressure,
+        water_level: val.water_level,
+        soil_moisture: val.soil_moisture,
+        light_intensity: val.light_intensity,
+        pm25: val.pm25,
+        air_quality: val.air_quality,
+        filtered: val.filtered,
+        anomaly: val.anomaly
+      });
     });
 
-    // Return in chronological order
-    return results.reverse();
+    return results;
   } catch (err) {
-    console.error('[Firebase] Error fetching historical data:', err.message);
+    console.error('[Firebase] Error fetching historical data from RTDB:', err.message);
     return [];
   }
 }
