@@ -154,32 +154,34 @@ function startSimulation() {
     { id: 'URBAN-003', type: 'urban', name: 'Park District Station' }
   ];
 
+  const { getWeather } = require('./weatherService');
   simulationInterval = setInterval(() => {
+    const weather = getWeather();
     nodes.forEach(node => {
       let data;
 
       if (node.type === 'rural') {
         data = {
           node_type: 'rural',
-          temperature: 22 + Math.random() * 15 - 5,
-          humidity: 45 + Math.random() * 40,
-          pressure: 1010 + Math.random() * 20 - 10,
-          water_level: 30 + Math.random() * 70,
-          soil_moisture: 20 + Math.random() * 60,
+          temperature: weather.temperature + (node.id === 'RURAL-002' ? -1.5 : 1.0) + Math.random() * 0.6 - 0.3,
+          humidity: Math.min(100, Math.max(0, weather.humidity + (node.id === 'RURAL-002' ? 5.0 : -2.0) + Math.random() * 2.0 - 1.0)),
+          pressure: weather.pressure + Math.random() * 0.4 - 0.2,
+          water_level: 45.2 + Math.random() * 5.0 - 2.5,
+          soil_moisture: 38.6 + Math.random() * 4.0 - 2.0,
           filtered: true,
-          anomaly: Math.random() < 0.05
+          anomaly: Math.random() < 0.01 // Reduced anomalies for clean demo presentation
         };
       } else {
         data = {
           node_type: 'urban',
-          temperature: 24 + Math.random() * 12 - 4,
-          humidity: 35 + Math.random() * 45,
-          pressure: 1012 + Math.random() * 15 - 7,
-          light_intensity: 200 + Math.random() * 800,
-          pm25: 10 + Math.random() * 150,
-          air_quality: 50 + Math.random() * 200,
+          temperature: weather.temperature + (node.id === 'URBAN-002' ? 2.2 : 0.5) + Math.random() * 0.8 - 0.4,
+          humidity: Math.min(100, Math.max(0, weather.humidity + (node.id === 'URBAN-002' ? -6.0 : -2.0) + Math.random() * 2.0 - 1.0)),
+          pressure: weather.pressure + Math.random() * 0.4 - 0.2,
+          light_intensity: Math.max(0, (new Date().getHours() >= 6 && new Date().getHours() <= 18 ? 650.0 : 15.0) + Math.random() * 40.0 - 20.0),
+          pm25: (node.id === 'URBAN-002' ? 42.0 : 18.0) + Math.random() * 4.0 - 2.0,
+          air_quality: (node.id === 'URBAN-002' ? 58.0 : 35.0) + Math.random() * 6.0 - 3.0,
           filtered: true,
-          anomaly: Math.random() < 0.08
+          anomaly: Math.random() < 0.01
         };
       }
 

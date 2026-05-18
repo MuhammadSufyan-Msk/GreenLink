@@ -16,6 +16,7 @@ const { configurePassport } = require('./config/passport');
 const { connectMQTT } = require('./services/mqttConsumer');
 const { initInflux } = require('./services/influxService');
 const { startAlertEngine } = require('./services/alertEngine');
+const { startWeatherUpdates } = require('./services/weatherService');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -86,6 +87,9 @@ async function boot() {
     // Initialize services
     await initInflux();
     console.log('[✓] InfluxDB connected');
+
+    startWeatherUpdates();
+    console.log('[✓] Weather updates service started');
 
     connectMQTT(wsInstance);
     console.log('[✓] MQTT consumer started');
