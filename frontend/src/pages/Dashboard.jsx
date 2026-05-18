@@ -21,6 +21,7 @@ function Dashboard({ theme, toggleTheme }) {
   const [chartData, setChartData] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [analyticsMode, setAnalyticsMode] = useState('native');
+  const [grafanaOnline, setGrafanaOnline] = useState(false);
 
   const fallbackChartData = Array.from({ length: 15 }, (_, i) => {
     const time = new Date(Date.now() - (15 - i) * 60000).toLocaleTimeString('en-US', {
@@ -34,6 +35,24 @@ function Dashboard({ theme, toggleTheme }) {
       humidity: Math.round(45 + Math.cos(i * 0.3) * 5)
     };
   });
+
+  const checkGrafanaStatus = useCallback(async () => {
+    const url = import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3000';
+    try {
+      const img = new Image();
+      img.onload = () => setGrafanaOnline(true);
+      img.onerror = () => setGrafanaOnline(false);
+      img.src = `${url}/public/img/grafana_icon.svg?t=${Date.now()}`;
+    } catch {
+      setGrafanaOnline(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkGrafanaStatus();
+    const interval = setInterval(checkGrafanaStatus, 5000);
+    return () => clearInterval(interval);
+  }, [checkGrafanaStatus]);
 
   // Initial data load
   useEffect(() => {
@@ -438,7 +457,7 @@ function Dashboard({ theme, toggleTheme }) {
                   <Area type="monotone" dataKey="air_quality" stroke="#22d3ee" fill="url(#aqiGrad)" strokeWidth={2} name="AQI" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
-            ) : (
+            ) : grafanaOnline ? (
               <iframe 
                 src={`${import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3000'}/d-solo/greenlink-main/greenlink-environmental-monitoring?orgId=1&panelId=2&theme=${theme}`} 
                 width="100%" 
@@ -447,6 +466,124 @@ function Dashboard({ theme, toggleTheme }) {
                 style={{ display: 'block' }}
                 title="Grafana PM2.5 Panel"
               ></iframe>
+            ) : (
+              <div style={{
+                padding: '32px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                background: 'var(--bg-secondary)',
+                borderRadius: '8px',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                minHeight: '300px'
+              }}>
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: '#ef4444',
+                  padding: '12px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '16px'
+                }}>
+                  <AlertTriangle size={32} />
+                </div>
+                <h4 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-accent)', marginBottom: '8px' }}>
+                  Grafana Server is Offline
+                </h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '500px', marginBottom: '24px', lineHeight: '1.5' }}>
+                  GreenLink could not reach the Grafana server at <code>{import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3000'}</code>. Make sure Grafana is running on your machine.
+                </p>
+                
+                <div style={{
+                  width: '100%',
+                  maxWidth: '600px',
+                  background: 'rgba(0, 0, 0, 0.2)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  padding: '20px',
+                  textAlign: 'left',
+                  marginBottom: '24px'
+                }}>
+                  <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-accent)', marginBottom: '12px' }}>
+                    🚀 How to Start Grafana with Embedding Enabled:
+                  </h5>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px', lineHeight: '1.4' }}>
+                    To allow Grafana to render inside this dashboard, embedding must be allowed. Run either command:
+                  </p>
+                  
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#3b82f6', marginBottom: '4px' }}>🐳 Using Docker (Recommended):</div>
+                    <pre style={{
+                      background: 'rgba(0,0,0,0.4)',
+                      padding: '10px',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      fontFamily: 'monospace',
+                      overflowX: 'auto',
+                      border: '1px solid rgba(255,255,255,0.05)',
+                      color: '#a7c4b5',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all'
+                    }}>
+                      docker run -d -p 3000:3000 --name=grafana -e "GF_SECURITY_ALLOW_EMBEDDING=true" grafana/grafana
+                    </pre>
+                  </div>
+                  
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f59e0b', marginBottom: '4px' }}>💻 Local Install (PowerShell):</div>
+                    <pre style={{
+                      background: 'rgba(0,0,0,0.4)',
+                      padding: '10px',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      fontFamily: 'monospace',
+                      overflowX: 'auto',
+                      border: '1px solid rgba(255,255,255,0.05)',
+                      color: '#a7c4b5',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all'
+                    }}>
+                      $env:GF_SECURITY_ALLOW_EMBEDDING="true"; grafana-server.exe
+                    </pre>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button 
+                    onClick={() => setAnalyticsMode('native')}
+                    style={{
+                      background: 'var(--color-primary, #22c55e)',
+                      border: 'none',
+                      color: '#fff',
+                      padding: '8px 20px',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.85rem',
+                      fontWeight: 600
+                    }}
+                  >
+                    📊 Use Native Live Chart
+                  </button>
+                  <button 
+                    onClick={checkGrafanaStatus}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-accent)',
+                      padding: '8px 20px',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    🔄 Retry Connection
+                  </button>
+                </div>
+              </div>
             )}
           </div>
           
