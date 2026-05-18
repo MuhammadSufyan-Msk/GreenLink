@@ -210,6 +210,9 @@ function startSimulation() {
         timestamp: new Date().toISOString()
       });
 
+      // Write simulation data to Firebase RTDB for Faisalabad history
+      writeSensorData(node.id, node.type, data);
+
       // Check thresholds
       checkThresholds(node.id, node.type, data);
     });

@@ -62,21 +62,22 @@ async function writeSensorData(nodeId, nodeType, sensorData) {
 
   try {
     const ref = db.ref('sensor_data').push();
-    await ref.set({
+    const payload = {
       node_id: nodeId,
       node_type: nodeType,
       timestamp: Date.now(),
-      temperature: sensorData.temperature,
-      humidity: sensorData.humidity,
-      pressure: sensorData.pressure,
-      water_level: sensorData.water_level,
-      soil_moisture: sensorData.soil_moisture,
-      light_intensity: sensorData.light_intensity,
-      pm25: sensorData.pm25,
-      air_quality: sensorData.air_quality,
-      filtered: sensorData.filtered,
-      anomaly: sensorData.anomaly
-    });
+      temperature: sensorData.temperature !== undefined ? sensorData.temperature : null,
+      humidity: sensorData.humidity !== undefined ? sensorData.humidity : null,
+      pressure: sensorData.pressure !== undefined ? sensorData.pressure : null,
+      water_level: sensorData.water_level !== undefined ? sensorData.water_level : null,
+      soil_moisture: sensorData.soil_moisture !== undefined ? sensorData.soil_moisture : null,
+      light_intensity: sensorData.light_intensity !== undefined ? sensorData.light_intensity : null,
+      pm25: sensorData.pm25 !== undefined ? sensorData.pm25 : null,
+      air_quality: sensorData.air_quality !== undefined ? sensorData.air_quality : null,
+      filtered: sensorData.filtered !== undefined ? sensorData.filtered : null,
+      anomaly: sensorData.anomaly !== undefined ? sensorData.anomaly : null
+    };
+    await ref.set(payload);
   } catch (err) {
     console.error('[Firebase] Error writing sensor data point to RTDB:', err.message);
   }
