@@ -368,10 +368,13 @@ function Dashboard({ theme, toggleTheme }) {
 
         {/* ── Embedded Grafana ── */}
         <div style={{ marginTop: 32 }}>
-          <div className="card-header">
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span className="card-title">Detailed Analytics (Grafana)</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', cursor: 'help' }} title="If this panel doesn't load, make sure Grafana is running and 'allow_embedding' is enabled.">
+              ⚠️ Connection Guide
+            </span>
           </div>
-          <div className="chart-card full-width" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="chart-card full-width" style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
             <iframe 
               src={`${import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3000'}/d-solo/greenlink-main/greenlink-environmental-monitoring?orgId=1&panelId=2&theme=${theme}`} 
               width="100%" 
@@ -380,6 +383,9 @@ function Dashboard({ theme, toggleTheme }) {
               style={{ display: 'block' }}
               title="Grafana PM2.5 Panel"
             ></iframe>
+          </div>
+          <div style={{ marginTop: 8, fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+            💡 <strong>Troubleshooting embedding:</strong> Grafana blocks iframe embedding by default. To fix this, set <code>allow_embedding = true</code> in your <code>grafana.ini</code> configuration, or run Grafana with the environment variable <code>GF_SECURITY_ALLOW_EMBEDDING=true</code>.
           </div>
         </div>
       </div>
