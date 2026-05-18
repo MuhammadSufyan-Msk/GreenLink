@@ -4,7 +4,8 @@ datasources:
   - name: InfluxDB
     type: influxdb
     access: proxy
-    url: http://localhost:8086
+    # Configured to dynamically load the URL from your environment variables
+    url: ${INFLUXDB_URL}
     jsonData:
       version: Flux
       organization: greenlink

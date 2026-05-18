@@ -1,6 +1,7 @@
 import time
 import json
 import sqlite3
+import os
 import paho.mqtt.client as mqtt
 from datetime import datetime
 
@@ -11,8 +12,8 @@ from datetime import datetime
 
 class GreenLinkGateway:
     def __init__(self):
-        self.mqtt_broker = "localhost"
-        self.mqtt_port = 1883
+        self.mqtt_broker = os.getenv("MQTT_HOST", "mqtt.greenlink.io")
+        self.mqtt_port = int(os.getenv("MQTT_PORT", 1883))
         self.mqtt_topic_prefix = "greenlink"
         
         self.client = mqtt.Client(client_id="greenlink_gateway_01")

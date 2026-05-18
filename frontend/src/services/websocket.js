@@ -11,8 +11,9 @@ class WebSocketService {
     this.maxReconnect = 10;
   }
 
-  connect() {
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:5000/ws/live';
+    const isSecure = window.location.protocol === 'https:';
+    const defaultWsUrl = `${isSecure ? 'wss' : 'ws'}://${window.location.host}/ws/live`;
+    const wsUrl = import.meta.env.VITE_WS_URL || defaultWsUrl;
 
     try {
       this.ws = new WebSocket(wsUrl);

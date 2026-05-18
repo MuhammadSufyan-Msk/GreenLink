@@ -14,7 +14,8 @@ const options = {
       contact: { name: 'GreenLink+ Team' }
     },
     servers: [
-      { url: 'http://localhost:5000', description: 'Development' }
+      { url: 'https://api.greenlink.io', description: 'Production (Cloud)' },
+      { url: 'http://localhost:5000', description: 'Development (Local)' }
     ],
     components: {
       securitySchemes: {
