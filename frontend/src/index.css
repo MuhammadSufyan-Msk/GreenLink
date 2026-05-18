@@ -708,7 +708,7 @@ body {
 .form-input {
   width: 100%;
   padding: 12px 16px;
-  background: rgba(10, 15, 13, 0.6);
+  background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   color: var(--text-primary);
