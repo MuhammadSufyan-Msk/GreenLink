@@ -20,6 +20,20 @@ function Dashboard({ theme, toggleTheme }) {
   const [alertStats, setAlertStats] = useState({ total: 0, unacknowledged: 0, critical: 0, high: 0 });
   const [chartData, setChartData] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [analyticsMode, setAnalyticsMode] = useState('native');
+
+  const fallbackChartData = Array.from({ length: 15 }, (_, i) => {
+    const time = new Date(Date.now() - (15 - i) * 60000).toLocaleTimeString('en-US', {
+      hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    return {
+      time,
+      pm25: Math.round(35 + Math.sin(i * 0.5) * 10 + Math.random() * 5),
+      air_quality: Math.round(50 + Math.sin(i * 0.5) * 15 + Math.random() * 8),
+      temperature: Math.round(28 + Math.sin(i * 0.3) * 2),
+      humidity: Math.round(45 + Math.cos(i * 0.3) * 5)
+    };
+  });
 
   // Initial data load
   useEffect(() => {
@@ -366,27 +380,81 @@ function Dashboard({ theme, toggleTheme }) {
           )}
         </div>
 
-        {/* ── Embedded Grafana ── */}
+        {/* ── Detailed Analytics ── */}
         <div style={{ marginTop: 32 }}>
           <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="card-title">Detailed Analytics (Grafana)</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', cursor: 'help' }} title="If this panel doesn't load, make sure Grafana is running and 'allow_embedding' is enabled.">
-              ⚠️ Connection Guide
-            </span>
+            <span className="card-title">Detailed Analytics</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button 
+                onClick={() => setAnalyticsMode('native')}
+                className={`btn-ghost btn-sm ${analyticsMode === 'native' ? 'active' : ''}`}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: 4,
+                  fontSize: '0.75rem',
+                  border: analyticsMode === 'native' ? '1px solid var(--text-accent)' : '1px solid transparent',
+                  background: analyticsMode === 'native' ? 'rgba(34, 197, 94, 0.08)' : 'transparent',
+                  color: analyticsMode === 'native' ? 'var(--text-accent)' : 'var(--text-muted)'
+                }}
+              >
+                📊 Native Chart
+              </button>
+              <button 
+                onClick={() => setAnalyticsMode('grafana')}
+                className={`btn-ghost btn-sm ${analyticsMode === 'grafana' ? 'active' : ''}`}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: 4,
+                  fontSize: '0.75rem',
+                  border: analyticsMode === 'grafana' ? '1px solid var(--text-accent)' : '1px solid transparent',
+                  background: analyticsMode === 'grafana' ? 'rgba(34, 197, 94, 0.08)' : 'transparent',
+                  color: analyticsMode === 'grafana' ? 'var(--text-accent)' : 'var(--text-muted)'
+                }}
+              >
+                📈 Grafana Panel
+              </button>
+            </div>
           </div>
-          <div className="chart-card full-width" style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
-            <iframe 
-              src={`${import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3000'}/d-solo/greenlink-main/greenlink-environmental-monitoring?orgId=1&panelId=2&theme=${theme}`} 
-              width="100%" 
-              height="300" 
-              frameBorder="0"
-              style={{ display: 'block' }}
-              title="Grafana PM2.5 Panel"
-            ></iframe>
+          
+          <div className="chart-card full-width" style={{ padding: analyticsMode === 'native' ? '20px' : '0px', overflow: 'hidden', position: 'relative', minHeight: '300px' }}>
+            {analyticsMode === 'native' ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={chartData.length > 0 ? chartData : fallbackChartData}>
+                  <defs>
+                    <linearGradient id="pm25Grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="aqiGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                  <XAxis dataKey="time" tick={{ fill: chartTheme.text, fontSize: 10 }} />
+                  <YAxis tick={{ fill: chartTheme.text, fontSize: 10 }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area type="monotone" dataKey="pm25" stroke="#ef4444" fill="url(#pm25Grad)" strokeWidth={2} name="PM2.5 (µg/m³)" dot={false} />
+                  <Area type="monotone" dataKey="air_quality" stroke="#22d3ee" fill="url(#aqiGrad)" strokeWidth={2} name="AQI" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <iframe 
+                src={`${import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3000'}/d-solo/greenlink-main/greenlink-environmental-monitoring?orgId=1&panelId=2&theme=${theme}`} 
+                width="100%" 
+                height="300" 
+                frameBorder="0"
+                style={{ display: 'block' }}
+                title="Grafana PM2.5 Panel"
+              ></iframe>
+            )}
           </div>
-          <div style={{ marginTop: 8, fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-            💡 <strong>Troubleshooting embedding:</strong> Grafana blocks iframe embedding by default. To fix this, set <code>allow_embedding = true</code> in your <code>grafana.ini</code> configuration, or run Grafana with the environment variable <code>GF_SECURITY_ALLOW_EMBEDDING=true</code>.
-          </div>
+          
+          {analyticsMode === 'grafana' && (
+            <div style={{ marginTop: 8, fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+              💡 <strong>Troubleshooting embedding:</strong> Grafana blocks iframe embedding by default. To fix this, set <code>allow_embedding = true</code> in your <code>grafana.ini</code> configuration, or run Grafana with the environment variable <code>GF_SECURITY_ALLOW_EMBEDDING=true</code>.
+            </div>
+          )}
         </div>
       </div>
     </>
