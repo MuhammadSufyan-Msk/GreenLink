@@ -15,7 +15,21 @@ import wsService from './services/websocket';
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState(localStorage.getItem('greenlink_theme') || 'dark');
   const location = useLocation();
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.body.classList.add('light-theme');
+    } else {
+      document.body.classList.remove('light-theme');
+    }
+    localStorage.setItem('greenlink_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('greenlink_token');
@@ -58,11 +72,17 @@ function App() {
 
   return (
     <div className="app-layout">
-      <Sidebar user={user} onLogout={handleLogout} currentPath={location.pathname} />
+      <Sidebar 
+        user={user} 
+        onLogout={handleLogout} 
+        currentPath={location.pathname} 
+        theme={theme} 
+        toggleTheme={toggleTheme} 
+      />
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/" element={<Dashboard theme={theme} toggleTheme={toggleTheme} />} />
+          <Route path="/dashboard" element={<Dashboard theme={theme} toggleTheme={toggleTheme} />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/nodes" element={<Nodes />} />
           <Route path="/nodes/:nodeId" element={<NodeDetail />} />

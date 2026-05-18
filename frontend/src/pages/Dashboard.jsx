@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Thermometer, Droplets, Wind, Waves,
-  TreePine, Sun, CloudRain, Cpu,
+  TreePine, Sun, Moon, CloudRain, Cpu,
   AlertTriangle, Wifi, WifiOff, Activity
 } from 'lucide-react';
 import {
@@ -15,7 +15,7 @@ import {
 import { getLiveData, getAlertStats } from '../services/api';
 import wsService from '../services/websocket';
 
-function Dashboard() {
+function Dashboard({ theme, toggleTheme }) {
   const [nodes, setNodes] = useState([]);
   const [alertStats, setAlertStats] = useState({ total: 0, unacknowledged: 0, critical: 0, high: 0 });
   const [chartData, setChartData] = useState([]);
@@ -122,9 +122,20 @@ function Dashboard() {
             )}
           </div>
         </div>
-        <div className="data-flow-indicator">
-          <span className="data-flow-dot" />
-          Live Data Stream
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button
+            onClick={toggleTheme}
+            className="btn-ghost"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+            title="Toggle Theme"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+          </button>
+          <div className="data-flow-indicator">
+            <span className="data-flow-dot" />
+            Live Data Stream
+          </div>
         </div>
       </div>
 
@@ -353,6 +364,23 @@ function Dashboard() {
               <p style={{ fontSize: '0.75rem', marginTop: 4 }}>Start the backend server to see live data</p>
             </div>
           )}
+        </div>
+
+        {/* ── Embedded Grafana ── */}
+        <div style={{ marginTop: 32 }}>
+          <div className="card-header">
+            <span className="card-title">Detailed Analytics (Grafana)</span>
+          </div>
+          <div className="chart-card full-width" style={{ padding: 0, overflow: 'hidden' }}>
+            <iframe 
+              src={`${import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3000'}/d-solo/greenlink-main/greenlink-environmental-monitoring?orgId=1&panelId=2&theme=${theme}`} 
+              width="100%" 
+              height="300" 
+              frameBorder="0"
+              style={{ display: 'block' }}
+              title="Grafana PM2.5 Panel"
+            ></iframe>
+          </div>
         </div>
       </div>
     </>

@@ -82,6 +82,31 @@
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* ── Light Theme Overrides ── */
+body.light-theme {
+  --bg-primary: #f0fdf4;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #dcfce7;
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-card-hover: #ffffff;
+  --bg-glass: rgba(255, 255, 255, 0.7);
+
+  --border-primary: rgba(22, 163, 74, 0.15);
+  --border-accent: rgba(22, 163, 74, 0.3);
+  --border-strong: rgba(22, 163, 74, 0.5);
+
+  --text-primary: #14532d;
+  --text-secondary: #166534;
+  --text-muted: #15803d;
+  --text-accent: #16a34a;
+
+  --shadow-glow: 0 4px 15px rgba(22, 163, 74, 0.08);
+  --shadow-glow-strong: 0 4px 25px rgba(22, 163, 74, 0.15);
+
+  --gradient-card: linear-gradient(145deg, rgba(255, 255, 255, 1), rgba(240, 253, 244, 0.6));
+  --gradient-sidebar: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+}
+
 /* ── Global Reset ── */
 *, *::before, *::after {
   margin: 0;

@@ -9,10 +9,12 @@ import {
   Cpu,
   Clock,
   LogOut,
-  Wifi
+  Wifi,
+  Moon,
+  Sun
 } from 'lucide-react';
 
-function Sidebar({ user, onLogout, currentPath }) {
+function Sidebar({ user, onLogout, currentPath, theme, toggleTheme }) {
   const navItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/nodes', icon: Cpu, label: 'Sensor Nodes' },
@@ -54,15 +56,6 @@ function Sidebar({ user, onLogout, currentPath }) {
         ))}
 
         <div className="nav-section-label" style={{ marginTop: 16 }}>System</div>
-        <a
-          href={`${import.meta.env.VITE_GRAFANA_URL || 'http://localhost:3000'}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="nav-link"
-        >
-          <Activity />
-          <span>Grafana</span>
-        </a>
         <div className="nav-link" style={{ cursor: 'default' }}>
           <Wifi />
           <span>MQTT Status</span>
