@@ -13,6 +13,7 @@ function Alerts() {
   const [stats, setStats] = useState({});
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchAlerts();
@@ -21,17 +22,20 @@ function Alerts() {
   }, [filter]);
 
   const fetchAlerts = async () => {
+    setRefreshing(true);
     try {
       const params = { limit: 100 };
       if (filter !== 'all') params.severity = filter;
       const [alertRes, statsRes] = await Promise.all([
         getAlerts(params).catch(() => ({ data: { alerts: [] } })),
-        getAlertStats().catch(() => ({ data: {} }))
+        getAlertStats().catch(() => ({ data: {} })),
+        new Promise(resolve => setTimeout(resolve, 600)) // Guarantee at least 600ms rotation for a satisfying feedback loop
       ]);
       setAlerts(alertRes.data?.alerts || []);
       setStats(statsRes.data || {});
     } catch { /* handled */ }
     setLoading(false);
+    setRefreshing(false);
   };
 
   const handleAcknowledge = async (id) => {
@@ -49,13 +53,27 @@ function Alerts() {
 
   return (
     <>
+      <style>{`
+        @keyframes spinAlert {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .spin-alert-icon {
+          animation: spinAlert 0.8s linear infinite;
+        }
+      `}</style>
       <div className="page-header">
         <div>
           <h2>Alerts</h2>
           <div className="page-header-subtitle">Threshold breaches & anomaly detections</div>
         </div>
-        <button className="btn-ghost" onClick={fetchAlerts} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <RefreshCw size={14} /> Refresh
+        <button 
+          className="btn-ghost" 
+          onClick={fetchAlerts} 
+          disabled={refreshing}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: refreshing ? 'not-allowed' : 'pointer' }}
+        >
+          <RefreshCw size={14} className={refreshing ? 'spin-alert-icon' : ''} /> {refreshing ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 
