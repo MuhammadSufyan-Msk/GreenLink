@@ -2,7 +2,7 @@
 // MQTT Consumer — Subscribe to Sensor Topics
 // ============================================
 const mqtt = require('mqtt');
-const { writeSensorData } = require('./influxService');
+const { writeSensorData } = require('./firebaseService');
 const { checkThresholds } = require('./alertEngine');
 
 let mqttClient = null;

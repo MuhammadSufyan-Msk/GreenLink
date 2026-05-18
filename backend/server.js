@@ -14,7 +14,7 @@ const path = require('path');
 const { setupSwagger } = require('./config/swagger');
 const { configurePassport } = require('./config/passport');
 const { connectMQTT } = require('./services/mqttConsumer');
-const { initInflux } = require('./services/influxService');
+const { initFirebase } = require('./services/firebaseService');
 const { startAlertEngine } = require('./services/alertEngine');
 const { startWeatherUpdates } = require('./services/weatherService');
 
@@ -85,8 +85,8 @@ const PORT = process.env.PORT || 5000;
 async function boot() {
   try {
     // Initialize services
-    await initInflux();
-    console.log('[✓] InfluxDB connected');
+    await initFirebase();
+    console.log('[✓] Firebase connected');
 
     startWeatherUpdates();
     console.log('[✓] Weather updates service started');

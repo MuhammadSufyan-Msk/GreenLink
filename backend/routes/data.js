@@ -4,7 +4,7 @@
 const router = require('express').Router();
 const passport = require('passport');
 const { getLatestNodeData, getNodeData } = require('../services/mqttConsumer');
-const { getHistoricalData } = require('../services/influxService');
+const { getHistoricalData } = require('../services/firebaseService');
 
 /**
  * @swagger
