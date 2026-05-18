@@ -319,7 +319,7 @@ body {
 .page-header {
   padding: 24px 32px;
   border-bottom: 1px solid var(--border-primary);
-  background: rgba(10, 15, 13, 0.8);
+  background: var(--bg-glass);
   backdrop-filter: blur(20px);
   position: sticky;
   top: 0;
