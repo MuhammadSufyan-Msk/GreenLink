@@ -147,11 +147,8 @@ function startSimulation() {
   console.log('[SIM] Starting sensor simulation...');
 
   const nodes = [
-    { id: 'RURAL-001', type: 'rural', name: 'Riverside Station Alpha' },
-    { id: 'RURAL-002', type: 'rural', name: 'Farmland Station Beta' },
-    { id: 'URBAN-001', type: 'urban', name: 'City Center Station' },
-    { id: 'URBAN-002', type: 'urban', name: 'Industrial Zone Station' },
-    { id: 'URBAN-003', type: 'urban', name: 'Park District Station' }
+    { id: 'URBAN-001', type: 'urban', name: 'Test Node Urban', status: 'online' },
+    { id: 'RURAL-001', type: 'rural', name: 'Test Node Rural', status: 'offline' }
   ];
 
   const { getWeather } = require('./weatherService');
@@ -160,11 +157,32 @@ function startSimulation() {
     nodes.forEach(node => {
       let data;
 
+      if (node.status === 'offline') {
+        latestNodeData[node.id] = {
+          node_id: node.id,
+          node_name: node.name,
+          node_type: node.type,
+          status: 'offline',
+          battery: null,
+          rssi: null,
+          last_seen: null
+        };
+
+        // Broadcast to WS that node is offline
+        broadcastToClients({
+          type: 'node_status',
+          node_id: node.id,
+          data: { status: 'offline', battery: null, rssi: null },
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
       if (node.type === 'rural') {
         data = {
           node_type: 'rural',
-          temperature: weather.temperature + (node.id === 'RURAL-002' ? -1.5 : 1.0) + Math.random() * 0.6 - 0.3,
-          humidity: Math.min(100, Math.max(0, weather.humidity + (node.id === 'RURAL-002' ? 5.0 : -2.0) + Math.random() * 2.0 - 1.0)),
+          temperature: weather.temperature + 1.0 + Math.random() * 0.6 - 0.3,
+          humidity: Math.min(100, Math.max(0, weather.humidity - 2.0 + Math.random() * 2.0 - 1.0)),
           pressure: weather.pressure + Math.random() * 0.4 - 0.2,
           water_level: 45.2 + Math.random() * 5.0 - 2.5,
           soil_moisture: 38.6 + Math.random() * 4.0 - 2.0,
@@ -174,12 +192,12 @@ function startSimulation() {
       } else {
         data = {
           node_type: 'urban',
-          temperature: weather.temperature + (node.id === 'URBAN-002' ? 2.2 : 0.5) + Math.random() * 0.8 - 0.4,
-          humidity: Math.min(100, Math.max(0, weather.humidity + (node.id === 'URBAN-002' ? -6.0 : -2.0) + Math.random() * 2.0 - 1.0)),
+          temperature: weather.temperature + 0.5 + Math.random() * 0.8 - 0.4,
+          humidity: Math.min(100, Math.max(0, weather.humidity - 2.0 + Math.random() * 2.0 - 1.0)),
           pressure: weather.pressure + Math.random() * 0.4 - 0.2,
           light_intensity: Math.max(0, (new Date().getHours() >= 6 && new Date().getHours() <= 18 ? 650.0 : 15.0) + Math.random() * 40.0 - 20.0),
-          pm25: (node.id === 'URBAN-002' ? 42.0 : 18.0) + Math.random() * 4.0 - 2.0,
-          air_quality: (node.id === 'URBAN-002' ? 58.0 : 35.0) + Math.random() * 6.0 - 3.0,
+          pm25: 18.0 + Math.random() * 4.0 - 2.0,
+          air_quality: 35.0 + Math.random() * 6.0 - 3.0,
           filtered: true,
           anomaly: Math.random() < 0.01
         };

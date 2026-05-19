@@ -106,10 +106,17 @@ function Dashboard({ theme, toggleTheme }) {
   // Aggregated stats
   const onlineNodes = nodes.filter(n => n.status === 'online').length;
   const totalNodes = nodes.length;
-  const avgTemp = nodes.length ? (nodes.reduce((s, n) => s + (n.sensors?.temperature || n.temperature || 0), 0) / nodes.length).toFixed(1) : '--';
-  const avgHumidity = nodes.length ? (nodes.reduce((s, n) => s + (n.sensors?.humidity || n.humidity || 0), 0) / nodes.length).toFixed(1) : '--';
-  const avgAQ = nodes.filter(n => (n.sensors?.air_quality || n.air_quality)).length
-    ? (nodes.reduce((s, n) => s + (n.sensors?.air_quality || n.air_quality || 0), 0) / nodes.filter(n => (n.sensors?.air_quality || n.air_quality)).length).toFixed(0)
+  const tempNodes = nodes.filter(n => (n.sensors?.temperature !== undefined || n.temperature !== undefined));
+  const avgTemp = tempNodes.length 
+    ? (tempNodes.reduce((s, n) => s + (n.sensors?.temperature || n.temperature || 0), 0) / tempNodes.length).toFixed(1) 
+    : '--';
+  const humNodes = nodes.filter(n => (n.sensors?.humidity !== undefined || n.humidity !== undefined));
+  const avgHumidity = humNodes.length 
+    ? (humNodes.reduce((s, n) => s + (n.sensors?.humidity || n.humidity || 0), 0) / humNodes.length).toFixed(1) 
+    : '--';
+  const aqNodes = nodes.filter(n => (n.sensors?.air_quality || n.air_quality));
+  const avgAQ = aqNodes.length
+    ? (aqNodes.reduce((s, n) => s + (n.sensors?.air_quality || n.air_quality || 0), 0) / aqNodes.length).toFixed(0)
     : '--';
 
   const chartTheme = {
@@ -330,59 +337,59 @@ function Dashboard({ theme, toggleTheme }) {
                   </span>
                 </div>
                 <div className="node-sensors">
-                  {s.temperature !== undefined && (
+                  {(s.temperature !== undefined || node.status === 'offline') && (
                     <div className="sensor-reading">
                       <span className="sensor-reading-label">🌡️ Temperature</span>
                       <span className="sensor-reading-value" style={{ color: 'var(--color-temperature)' }}>
-                        {typeof s.temperature === 'number' ? s.temperature.toFixed(1) : s.temperature}°C
+                        {typeof s.temperature === 'number' ? `${s.temperature.toFixed(1)}°C` : '--'}
                       </span>
                     </div>
                   )}
-                  {s.humidity !== undefined && (
+                  {(s.humidity !== undefined || node.status === 'offline') && (
                     <div className="sensor-reading">
                       <span className="sensor-reading-label">💧 Humidity</span>
                       <span className="sensor-reading-value" style={{ color: 'var(--color-humidity)' }}>
-                        {typeof s.humidity === 'number' ? s.humidity.toFixed(1) : s.humidity}%
+                        {typeof s.humidity === 'number' ? `${s.humidity.toFixed(1)}%` : '--'}
                       </span>
                     </div>
                   )}
-                  {(s.water_level !== undefined) && (
+                  {(s.water_level !== undefined || (isRural && node.status === 'offline')) && (
                     <div className="sensor-reading">
                       <span className="sensor-reading-label">🌊 Water Level</span>
                       <span className="sensor-reading-value" style={{ color: 'var(--color-water-level)' }}>
-                        {typeof s.water_level === 'number' ? s.water_level.toFixed(1) : s.water_level}cm
+                        {typeof s.water_level === 'number' ? `${s.water_level.toFixed(1)}cm` : '--'}
                       </span>
                     </div>
                   )}
-                  {(s.soil_moisture !== undefined) && (
+                  {(s.soil_moisture !== undefined || (isRural && node.status === 'offline')) && (
                     <div className="sensor-reading">
                       <span className="sensor-reading-label">🌱 Soil Moisture</span>
                       <span className="sensor-reading-value" style={{ color: 'var(--color-soil-moisture)' }}>
-                        {typeof s.soil_moisture === 'number' ? s.soil_moisture.toFixed(1) : s.soil_moisture}%
+                        {typeof s.soil_moisture === 'number' ? `${s.soil_moisture.toFixed(1)}%` : '--'}
                       </span>
                     </div>
                   )}
-                  {(s.pm25 !== undefined) && (
+                  {(s.pm25 !== undefined || (!isRural && node.status === 'offline')) && (
                     <div className="sensor-reading">
                       <span className="sensor-reading-label">🫁 PM2.5</span>
                       <span className="sensor-reading-value" style={{ color: 'var(--color-pm25)' }}>
-                        {typeof s.pm25 === 'number' ? s.pm25.toFixed(1) : s.pm25}µg
+                        {typeof s.pm25 === 'number' ? `${s.pm25.toFixed(1)}µg` : '--'}
                       </span>
                     </div>
                   )}
-                  {(s.air_quality !== undefined) && (
+                  {(s.air_quality !== undefined || (!isRural && node.status === 'offline')) && (
                     <div className="sensor-reading">
                       <span className="sensor-reading-label">💨 Air Quality</span>
                       <span className="sensor-reading-value" style={{ color: 'var(--color-air-quality)' }}>
-                        {typeof s.air_quality === 'number' ? s.air_quality.toFixed(0) : s.air_quality} AQI
+                        {typeof s.air_quality === 'number' ? `${s.air_quality.toFixed(0)} AQI` : '--'}
                       </span>
                     </div>
                   )}
-                  {(s.light_intensity !== undefined) && (
+                  {(s.light_intensity !== undefined || (!isRural && node.status === 'offline')) && (
                     <div className="sensor-reading">
                       <span className="sensor-reading-label">☀️ Light</span>
                       <span className="sensor-reading-value" style={{ color: 'var(--color-light)' }}>
-                        {typeof s.light_intensity === 'number' ? s.light_intensity.toFixed(0) : s.light_intensity} lx
+                        {typeof s.light_intensity === 'number' ? `${s.light_intensity.toFixed(0)} lx` : '--'}
                       </span>
                     </div>
                   )}

@@ -94,7 +94,7 @@ function History() {
 
       // Generate data per node or all
       const nodeIds = selectedNode === 'all'
-        ? ['RURAL-001', 'URBAN-001', 'URBAN-002']
+        ? ['URBAN-001', 'RURAL-001']
         : [selectedNode];
 
       nodeIds.forEach((nid, j) => {
@@ -111,7 +111,7 @@ function History() {
 
   const currentMetric = metrics.find(m => m.value === selectedMetric);
   const nodeIds = selectedNode === 'all'
-    ? ['RURAL-001', 'URBAN-001', 'URBAN-002']
+    ? ['URBAN-001', 'RURAL-001']
     : [selectedNode];
   const lineColors = ['#4ade80', '#3b82f6', '#f97316', '#8b5cf6', '#06b6d4'];
 
@@ -199,9 +199,8 @@ function History() {
                 ))}
                 {nodes.length === 0 && (
                   <>
-                    <option value="RURAL-001">RURAL-001</option>
                     <option value="URBAN-001">URBAN-001</option>
-                    <option value="URBAN-002">URBAN-002</option>
+                    <option value="RURAL-001">RURAL-001</option>
                   </>
                 )}
               </select>
