@@ -12,7 +12,7 @@
     "dev:frontend": "cd frontend && npm run dev",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "setup": "npm install && cd backend && npm install && cd ../frontend && npm install",
-    "build": "npm run build --workspace=frontend",
+    "build": "echo 'Serving pre-built assets from Git'",
     "start": "node backend/server.js"
   },
   "keywords": ["iot", "environmental-monitoring", "ai", "esp32", "influxdb"],
