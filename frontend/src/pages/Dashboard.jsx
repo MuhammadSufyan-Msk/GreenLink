@@ -66,7 +66,29 @@ function Dashboard({ theme, toggleTheme }) {
     const unsub = wsService.subscribe('sensor_data', (msg) => {
       setNodes(prev => {
         const existing = prev.findIndex(n => n.node_id === msg.node_id);
-        const updated = { ...msg.data, node_id: msg.node_id, node_type: msg.node_type };
+        const updated = {
+          node_id: msg.node_id,
+          node_name: msg.data.node_name,
+          node_type: msg.node_type,
+          status: msg.data.status || 'online',
+          battery: msg.data.battery,
+          rssi: msg.data.rssi,
+          last_seen: msg.data.last_seen || new Date().toISOString(),
+          sensors: {
+            temperature: msg.data.temperature,
+            humidity: msg.data.humidity,
+            pressure: msg.data.pressure,
+            water_level: msg.data.water_level,
+            soil_moisture: msg.data.soil_moisture,
+            light_intensity: msg.data.light_intensity,
+            pm25: msg.data.pm25,
+            air_quality: msg.data.air_quality
+          },
+          ai: {
+            filtered: msg.data.filtered,
+            anomaly: msg.data.anomaly
+          }
+        };
         if (existing >= 0) {
           const newNodes = [...prev];
           newNodes[existing] = { ...newNodes[existing], ...updated };
