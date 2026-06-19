@@ -16,6 +16,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState(localStorage.getItem('greenlink_theme') || 'dark');
+  const [dataSource, setDataSource] = useState(localStorage.getItem('greenlink_datasource') || 'urban');
   const location = useLocation();
 
   useEffect(() => {
@@ -26,6 +27,10 @@ function App() {
     }
     localStorage.setItem('greenlink_theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('greenlink_datasource', dataSource);
+  }, [dataSource]);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -77,12 +82,14 @@ function App() {
         onLogout={handleLogout} 
         currentPath={location.pathname} 
         theme={theme} 
-        toggleTheme={toggleTheme} 
+        toggleTheme={toggleTheme}
+        dataSource={dataSource}
+        setDataSource={setDataSource}
       />
       <main className="main-content">
         <Routes>
-          <Route path="/" element={<Dashboard theme={theme} toggleTheme={toggleTheme} />} />
-          <Route path="/dashboard" element={<Dashboard theme={theme} toggleTheme={toggleTheme} />} />
+          <Route path="/" element={<Dashboard theme={theme} toggleTheme={toggleTheme} dataSource={dataSource} setDataSource={setDataSource} />} />
+          <Route path="/dashboard" element={<Dashboard theme={theme} toggleTheme={toggleTheme} dataSource={dataSource} setDataSource={setDataSource} />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/nodes" element={<Nodes />} />
           <Route path="/nodes/:nodeId" element={<NodeDetail />} />

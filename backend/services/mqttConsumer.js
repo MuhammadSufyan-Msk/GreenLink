@@ -22,6 +22,9 @@ function connectMQTT(wsInst) {
   const port = process.env.MQTT_PORT || 1883;
   const url = `mqtt://${host}:${port}`;
 
+  // Connect to AWS IoT Core (for Urban Nodes)
+  connectAWSIoT(wsInst);
+
   const options = {
     clientId: `greenlink_backend_${Date.now()}`,
     clean: true,
@@ -155,6 +158,10 @@ function startSimulation() {
   simulationInterval = setInterval(() => {
     const weather = getWeather();
     nodes.forEach(node => {
+      // Skip simulating URBAN-001 if we have real urban nodes connected/received from AWS IoT Core
+      if (node.type === 'urban' && Object.values(latestNodeData).some(n => n.node_id !== 'URBAN-001' && n.node_type === 'urban')) {
+        return;
+      }
       let data;
 
       if (node.status === 'offline') {
@@ -238,10 +245,16 @@ function startSimulation() {
 }
 
 /**
- * Get latest data for all nodes
+ * Get latest data for all nodes, optionally filtered by source type.
+ * @param {string|null} source - 'urban' | 'rural' | 'api' | null (all)
  */
-function getLatestNodeData() {
-  return latestNodeData;
+function getLatestNodeData(source = null) {
+  if (!source || source === 'api') return latestNodeData;
+  return Object.fromEntries(
+    Object.entries(latestNodeData).filter(([, node]) =>
+      node.node_type && node.node_type.toLowerCase().includes(source.toLowerCase())
+    )
+  );
 }
 
 /**
@@ -251,4 +264,206 @@ function getNodeData(nodeId) {
   return latestNodeData[nodeId] || null;
 }
 
-module.exports = { connectMQTT, getLatestNodeData, getNodeData };
+/**
+ * Get a summary of available data sources and their node counts
+ */
+function getSourceSummary() {
+  const all = Object.values(latestNodeData);
+  return [
+    {
+      id: 'urban',
+      label: 'Urban Node',
+      icon: '🏙️',
+      desc: 'City air & environment sensors',
+      count: all.filter(n => (n.node_type || '').toLowerCase().includes('urban')).length,
+      online: all.filter(n => (n.node_type || '').toLowerCase().includes('urban') && n.status === 'online').length
+    },
+    {
+      id: 'rural',
+      label: 'Rural Node',
+      icon: '🌾',
+      desc: 'Field water, soil & crop sensors',
+      count: all.filter(n => (n.node_type || '').toLowerCase().includes('rural')).length,
+      online: all.filter(n => (n.node_type || '').toLowerCase().includes('rural') && n.status === 'online').length
+    },
+    {
+      id: 'api',
+      label: 'API Data',
+      icon: '📡',
+      desc: 'All nodes via REST / cloud endpoint',
+      count: all.length,
+      online: all.filter(n => n.status === 'online').length
+    }
+  ];
+}
+
+/**
+ * Connect to AWS IoT Core and subscribe to data
+ */
+function connectAWSIoT(wsInst) {
+  const fs = require('fs');
+  const path = require('path');
+
+  const endpoint = process.env.AWS_IOT_ENDPOINT || 'a2erh5oc2fsaxy-ats.iot.ap-southeast-2.amazonaws.com';
+  const certsDir = process.env.AWS_IOT_CERTS_DIR 
+    ? path.resolve(__dirname, '..', process.env.AWS_IOT_CERTS_DIR) 
+    : path.join(__dirname, '../../certs');
+  
+  const caFile = path.join(certsDir, 'AmazonRootCA1.pem');
+  const keyFile = path.join(certsDir, '4eb24ec384ed2be191f04735af51e51cbddf71deebd3dd3b3a830ee01116fdd9-private.pem.key');
+  
+  // Choose the non-empty certificate file
+  let certFile = path.join(certsDir, '4eb24ec384ed2be191f04735af51e51cbddf71deebd3dd3b3a830ee01116fdd9-certificate.pem (1).crt');
+  if (!fs.existsSync(certFile) || fs.statSync(certFile).size === 0) {
+    certFile = path.join(certsDir, '4eb24ec384ed2be191f04735af51e51cbddf71deebd3dd3b3a830ee01116fdd9-certificate.pem.crt');
+  }
+
+  if (!fs.existsSync(caFile) || !fs.existsSync(keyFile) || !fs.existsSync(certFile)) {
+    console.warn('[AWS IoT] Missing certificate files. Skipping AWS IoT Core connection.');
+    return;
+  }
+
+  const options = {
+    host: endpoint,
+    port: 8883,
+    protocol: 'mqtts',
+    clientId: `greenlink_backend_aws_${Date.now()}`,
+    clean: true,
+    connectTimeout: 10000,
+    reconnectPeriod: 5000,
+    key: fs.readFileSync(keyFile),
+    cert: fs.readFileSync(certFile),
+    ca: [fs.readFileSync(caFile)],
+    rejectUnauthorized: true
+  };
+
+  try {
+    console.log('[AWS IoT] Connecting to AWS IoT Core at:', endpoint);
+    awsMqttClient = mqtt.connect(options);
+
+    awsMqttClient.on('connect', () => {
+      console.log(`[AWS IoT] Successfully connected to ${endpoint}`);
+      awsMqttClient.subscribe('greenlink/environment/urban', { qos: 1 });
+      awsMqttClient.subscribe('greenlink/environment/+', { qos: 1 });
+      awsMqttClient.subscribe('greenlink/+/data', { qos: 1 });
+      awsMqttClient.subscribe('greenlink/+/status', { qos: 1 });
+    });
+
+    awsMqttClient.on('message', handleAWSMessage);
+
+    awsMqttClient.on('error', (err) => {
+      console.error(`[AWS IoT] Connection error: ${err.message}`);
+    });
+  } catch (err) {
+    console.error('[AWS IoT] Connection failed:', err.message);
+  }
+}
+
+/**
+ * Calculate AQI from PM2.5 concentration using the US EPA standard formula
+ */
+function calculateAQI(pm25) {
+  if (pm25 === undefined || pm25 === null || isNaN(pm25)) return 0;
+  
+  // Standard US EPA PM2.5 breakpoints and AQI values
+  const breakpoints = [
+    { cMin: 0.0, cMax: 12.0, iMin: 0, iMax: 50 },
+    { cMin: 12.1, cMax: 35.4, iMin: 51, iMax: 100 },
+    { cMin: 35.5, cMax: 55.4, iMin: 101, iMax: 150 },
+    { cMin: 55.5, cMax: 150.4, iMin: 151, iMax: 200 },
+    { cMin: 150.5, cMax: 250.4, iMin: 201, iMax: 300 },
+    { cMin: 250.5, cMax: 350.4, iMin: 301, iMax: 400 },
+    { cMin: 350.5, cMax: 500.4, iMin: 401, iMax: 500 }
+  ];
+
+  for (const bp of breakpoints) {
+    if (pm25 >= bp.cMin && pm25 <= bp.cMax) {
+      const aqi = ((bp.iMax - bp.iMin) / (bp.cMax - bp.cMin)) * (pm25 - bp.cMin) + bp.iMin;
+      return Math.round(aqi);
+    }
+  }
+
+  if (pm25 > 500.4) return 500;
+  return 0;
+}
+
+/**
+ * Handle incoming messages from AWS IoT Core
+ */
+function handleAWSMessage(topic, message) {
+  try {
+    const payload = JSON.parse(message.toString());
+    const parts = topic.split('/');
+    const nodeCategory = parts[2] || 'urban';
+    const nodeId = payload.node || nodeCategory;
+
+    // Map AWS fields (temp -> temperature, hum -> humidity, lux -> light_intensity, gas -> raw gas value)
+    const temperature = typeof payload.temp === 'number' ? payload.temp : (payload.temperature || 0);
+    const humidity = typeof payload.hum === 'number' ? payload.hum : (payload.humidity || 0);
+    const pressure = typeof payload.pressure === 'number' ? payload.pressure : 1013;
+    const pm25 = typeof payload.pm25 === 'number' ? payload.pm25 : 10;
+    const pm10 = typeof payload.pm10 === 'number' ? payload.pm10 : 12;
+    const light_intensity = typeof payload.lux === 'number' ? payload.lux : (payload.light_intensity || 0);
+    
+    // Calculate air quality index based on PM2.5 concentration using EPA standard
+    const air_quality = calculateAQI(pm25);
+
+    const mapped = {
+      node_id: nodeId,
+      node_name: nodeId.charAt(0).toUpperCase() + nodeId.slice(1) + ' Node',
+      node_type: 'urban',
+      status: 'online',
+      battery: payload.battery || 100,
+      rssi: payload.rssi || -50,
+      last_seen: new Date().toISOString(),
+      // Mapped sensor fields
+      temperature,
+      humidity,
+      pressure,
+      pm25,
+      pm10,
+      air_quality,
+      light_intensity,
+      gas_resistance: payload.gas, // Keep raw gas resistance available
+      filtered: true,
+      anomaly: false
+    };
+
+    latestNodeData[nodeId] = mapped;
+
+    // Write mapped data to database
+    writeSensorData(nodeId, 'urban', {
+      temperature,
+      humidity,
+      pressure,
+      pm25,
+      air_quality,
+      light_intensity
+    });
+
+    // Check alert thresholds
+    checkThresholds(nodeId, 'urban', {
+      temperature,
+      humidity,
+      pressure,
+      pm25,
+      air_quality,
+      light_intensity
+    });
+
+    // Broadcast mapped state to WebSocket clients
+    broadcastToClients({
+      type: 'sensor_data',
+      node_id: nodeId,
+      node_type: 'urban',
+      data: mapped,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log(`[AWS IoT] Processed telemetry message from node: ${nodeId} (${temperature}°C, ${humidity}%)`);
+  } catch (err) {
+    console.error('[AWS IoT] Message parse error:', err.message);
+  }
+}
+
+module.exports = { connectMQTT, getLatestNodeData, getNodeData, getSourceSummary };

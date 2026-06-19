@@ -41,8 +41,8 @@ export const getProfile = () =>
   api.get('/auth/profile');
 
 // ── Sensor Data ─────────────────────────────
-export const getLiveData = () =>
-  api.get('/data/live');
+export const getLiveData = (source) =>
+  api.get('/data/live', { params: source ? { source } : {} });
 
 export const getNodeLiveData = (nodeId) =>
   api.get(`/data/live/${nodeId}`);

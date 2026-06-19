@@ -3,24 +3,54 @@
 // ============================================
 const router = require('express').Router();
 const passport = require('passport');
-const { getLatestNodeData, getNodeData } = require('../services/mqttConsumer');
+const { getLatestNodeData, getNodeData, getSourceSummary } = require('../services/mqttConsumer');
 const { getHistoricalData } = require('../services/firebaseService');
+
+/**
+ * @swagger
+ * /api/data/sources:
+ *   get:
+ *     tags: [Sensor Data]
+ *     summary: Get available data sources (urban, rural, api) with live node counts
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200:
+ *         description: List of data sources with metadata and node counts
+ */
+router.get('/sources',
+  passport.authenticate('jwt', { session: false }),
+  (req, res) => {
+    res.json({
+      sources: getSourceSummary(),
+      timestamp: new Date().toISOString()
+    });
+  }
+);
 
 /**
  * @swagger
  * /api/data/live:
  *   get:
  *     tags: [Sensor Data]
- *     summary: Get latest sensor data from all nodes
+ *     summary: Get latest sensor data from all nodes (or filtered by source)
  *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: source
+ *         schema:
+ *           type: string
+ *           enum: [urban, rural, api]
+ *         description: Filter nodes by data source type. 'api' returns all nodes.
  *     responses:
  *       200:
- *         description: Latest sensor readings from all active nodes
+ *         description: Latest sensor readings filtered by source
  */
 router.get('/live',
   passport.authenticate('jwt', { session: false }),
   (req, res) => {
-    const data = getLatestNodeData();
+    const { source } = req.query; // 'urban' | 'rural' | 'api' | undefined
+    const data = getLatestNodeData(source || null);
+
     const nodes = Object.values(data).map(node => ({
       node_id: node.node_id,
       node_name: node.node_name,
@@ -46,6 +76,7 @@ router.get('/live',
     }));
 
     res.json({
+      source: source || 'all',
       count: nodes.length,
       nodes,
       timestamp: new Date().toISOString()
@@ -86,6 +117,12 @@ router.get('/live/:nodeId',
  *         name: nodeId
  *         schema: { type: string }
  *       - in: query
+ *         name: source
+ *         schema:
+ *           type: string
+ *           enum: [urban, rural, api]
+ *         description: Filter by source type (maps to node_type prefix)
+ *       - in: query
  *         name: start
  *         schema: { type: string, example: "-24h" }
  *       - in: query
@@ -100,9 +137,18 @@ router.get('/history',
   passport.authenticate('jwt', { session: false }),
   async (req, res) => {
     try {
-      const { nodeId, start = '-24h', end = 'now()', window = '5m' } = req.query;
-      const data = await getHistoricalData(nodeId, start, end, window);
-      res.json({ count: data.length, data });
+      const { nodeId, source, start = '-24h', end = 'now()', window = '5m' } = req.query;
+
+      // If source is given and no specific nodeId, try to resolve a nodeId from source type
+      const resolvedNodeId = nodeId || null;
+      const data = await getHistoricalData(resolvedNodeId, start, end, window);
+
+      // Filter by source if provided and no explicit nodeId given
+      const filtered = (source && source !== 'api' && !nodeId)
+        ? data.filter(d => d.node_type && d.node_type.toLowerCase().includes(source.toLowerCase()))
+        : data;
+
+      res.json({ source: source || 'all', count: filtered.length, data: filtered });
     } catch (err) {
       res.status(500).json({ error: true, message: err.message });
     }
@@ -110,3 +156,5 @@ router.get('/history',
 );
 
 module.exports = router;
+
+

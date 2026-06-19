@@ -1,11 +1,12 @@
 // ============================================
 // Dashboard Page — Real-time Environmental Overview
 // ============================================
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Thermometer, Droplets, Wind, Waves,
   TreePine, Sun, Moon, CloudRain, Cpu,
-  AlertTriangle, Wifi, WifiOff, Activity
+  AlertTriangle, Wifi, WifiOff, Activity,
+  ChevronDown, Radio, Globe, Antenna
 } from 'lucide-react';
 import {
   AreaChart, Area, LineChart, Line,
@@ -15,13 +16,34 @@ import {
 import { getLiveData, getAlertStats } from '../services/api';
 import wsService from '../services/websocket';
 
-function Dashboard({ theme, toggleTheme }) {
+function Dashboard({ theme, toggleTheme, dataSource, setDataSource }) {
   const [nodes, setNodes] = useState([]);
   const [alertStats, setAlertStats] = useState({ total: 0, unacknowledged: 0, critical: 0, high: 0 });
   const [chartData, setChartData] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [analyticsMode, setAnalyticsMode] = useState('native');
   const [grafanaOnline, setGrafanaOnline] = useState(false);
+  const [dsDropdownOpen, setDsDropdownOpen] = useState(false);
+  const dsDropdownRef = useRef(null);
+
+  const DATA_SOURCES = [
+    { id: 'urban',  label: 'Urban Node',  icon: '🏙️',  desc: 'City air & environment sensors' },
+    { id: 'rural',  label: 'Rural Node',  icon: '🌾',  desc: 'Field water, soil & crop sensors' },
+    { id: 'api',    label: 'API Data',    icon: '📡',  desc: 'External REST / cloud endpoint' },
+  ];
+
+  const activeDS = DATA_SOURCES.find(d => d.id === dataSource) || DATA_SOURCES[0];
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (dsDropdownRef.current && !dsDropdownRef.current.contains(e.target)) {
+        setDsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const fallbackChartData = Array.from({ length: 15 }, (_, i) => {
     const time = new Date(Date.now() - (15 - i) * 60000).toLocaleTimeString('en-US', {
@@ -54,16 +76,37 @@ function Dashboard({ theme, toggleTheme }) {
     return () => clearInterval(interval);
   }, [checkGrafanaStatus]);
 
+  const fetchData = useCallback(async () => {
+    try {
+      const [liveRes, alertRes] = await Promise.all([
+        getLiveData(dataSource).catch(() => ({ data: { nodes: [] } })),
+        getAlertStats().catch(() => ({ data: { total: 0, unacknowledged: 0, critical: 0, high: 0 } }))
+      ]);
+      if (liveRes.data?.nodes) {
+        setNodes(liveRes.data.nodes);
+        setLastUpdate(new Date());
+      }
+      setAlertStats(alertRes.data || {});
+    } catch { /* handled above */ }
+  }, [dataSource]);
+
   // Initial data load
   useEffect(() => {
+    setNodes([]); // Reset nodes on datasource swap
     fetchData();
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchData]);
 
   // WebSocket real-time updates
   useEffect(() => {
     const unsub = wsService.subscribe('sensor_data', (msg) => {
+      // Filter websocket events to match the currently selected source
+      if (dataSource && dataSource !== 'api') {
+        const isMatch = msg.node_type && msg.node_type.toLowerCase().includes(dataSource.toLowerCase());
+        if (!isMatch) return;
+      }
+
       setNodes(prev => {
         const existing = prev.findIndex(n => n.node_id === msg.node_id);
         const updated = {
@@ -109,21 +152,7 @@ function Dashboard({ theme, toggleTheme }) {
       });
     });
     return unsub;
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      const [liveRes, alertRes] = await Promise.all([
-        getLiveData().catch(() => ({ data: { nodes: [] } })),
-        getAlertStats().catch(() => ({ data: { total: 0, unacknowledged: 0, critical: 0, high: 0 } }))
-      ]);
-      if (liveRes.data?.nodes?.length) {
-        setNodes(liveRes.data.nodes);
-        setLastUpdate(new Date());
-      }
-      setAlertStats(alertRes.data || {});
-    } catch { /* handled above */ }
-  };
+  }, [dataSource]);
 
   // Aggregated stats
   const onlineNodes = nodes.filter(n => n.status === 'online').length;
@@ -184,7 +213,52 @@ function Dashboard({ theme, toggleTheme }) {
             )}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* ── Data Source Dropdown ── */}
+          <div className="ds-dropdown-wrapper" ref={dsDropdownRef}>
+            <button
+              id="data-source-toggle"
+              className="btn-ghost ds-dropdown-trigger"
+              onClick={() => setDsDropdownOpen(o => !o)}
+              aria-haspopup="listbox"
+              aria-expanded={dsDropdownOpen}
+              title="Select data source"
+            >
+              <span className="ds-trigger-icon">{activeDS.icon}</span>
+              <span className="ds-trigger-label">{activeDS.label}</span>
+              <ChevronDown
+                size={14}
+                className={`ds-chevron ${dsDropdownOpen ? 'open' : ''}`}
+              />
+            </button>
+
+            {dsDropdownOpen && (
+              <div className="ds-dropdown-menu" role="listbox">
+                <div className="ds-dropdown-header">Data Source</div>
+                {DATA_SOURCES.map(source => (
+                  <button
+                    key={source.id}
+                    id={`ds-option-${source.id}`}
+                    role="option"
+                    aria-selected={dataSource === source.id}
+                    className={`ds-dropdown-item ${dataSource === source.id ? 'active' : ''}`}
+                    onClick={() => { setDataSource(source.id); setDsDropdownOpen(false); }}
+                  >
+                    <span className="ds-item-icon">{source.icon}</span>
+                    <span className="ds-item-text">
+                      <span className="ds-item-label">{source.label}</span>
+                      <span className="ds-item-desc">{source.desc}</span>
+                    </span>
+                    {dataSource === source.id && (
+                      <span className="ds-item-check">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Theme Toggle ── */}
           <button
             onClick={toggleTheme}
             className="btn-ghost"
