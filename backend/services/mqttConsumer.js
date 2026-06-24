@@ -1,14 +1,13 @@
-// ============================================
-// MQTT Consumer — Subscribe to Sensor Topics
-// ============================================
 const mqtt = require('mqtt');
 const { writeSensorData } = require('./firebaseService');
 const { checkThresholds } = require('./alertEngine');
+const { startApiDataService, getApiNode, getApiNodes } = require('./apiDataService');
 
 let mqttClient = null;
+let awsMqttClient = null;
 let wsInstance = null;
 
-// Simulated data store for demo mode (when MQTT broker unavailable)
+// In-memory store: keyed by node_id, populated by AWS IoT + simulation
 let latestNodeData = {};
 let simulationInterval = null;
 
@@ -18,12 +17,23 @@ let simulationInterval = null;
 function connectMQTT(wsInst) {
   wsInstance = wsInst;
 
-  const host = process.env.MQTT_HOST || 'localhost';
-  const port = process.env.MQTT_PORT || 1883;
-  const url = `mqtt://${host}:${port}`;
+  // Start external REST API data service (powers the 'API Data' tab)
+  startApiDataService((nodeId, nodeType, data) => {
+    broadcastToClients({
+      type: 'sensor_data',
+      node_id: nodeId,
+      node_type: nodeType,
+      data,
+      timestamp: new Date().toISOString()
+    });
+  });
 
   // Connect to AWS IoT Core (for Urban Nodes)
   connectAWSIoT(wsInst);
+
+  const host = process.env.MQTT_HOST || 'localhost';
+  const port = process.env.MQTT_PORT || 1883;
+  const url = `mqtt://${host}:${port}`;
 
   const options = {
     clientId: `greenlink_backend_${Date.now()}`,
@@ -150,18 +160,18 @@ function startSimulation() {
   console.log('[SIM] Starting sensor simulation...');
 
   const nodes = [
-    { id: 'URBAN-001', type: 'urban', name: 'Test Node Urban', status: 'online' },
-    { id: 'RURAL-001', type: 'rural', name: 'Test Node Rural', status: 'offline' }
+    { id: 'URBAN-001', type: 'urban', name: 'Simulated Urban Node', status: 'online' },
+    { id: 'RURAL-001', type: 'rural', name: 'Rural Node (Offline)', status: 'offline' }
   ];
 
   const { getWeather } = require('./weatherService');
   simulationInterval = setInterval(() => {
     const weather = getWeather();
     nodes.forEach(node => {
-      // Skip simulating URBAN-001 if we have real urban nodes connected/received from AWS IoT Core
-      if (node.type === 'urban' && Object.values(latestNodeData).some(n => n.node_id !== 'URBAN-001' && n.node_type === 'urban')) {
-        return;
-      }
+      // Keep simulated urban node active so we always have multiple (>1) urban nodes
+      // if (node.type === 'urban' && Object.keys(latestNodeData).some(id => id.startsWith('AWS-'))) {
+      //   return;
+      // }
       let data;
 
       if (node.status === 'offline') {
@@ -245,14 +255,35 @@ function startSimulation() {
 }
 
 /**
- * Get latest data for all nodes, optionally filtered by source type.
- * @param {string|null} source - 'urban' | 'rural' | 'api' | null (all)
+ * Get latest data for all nodes, filtered by source type.
+ * - 'urban'  → AWS IoT Core nodes (real hardware, node_type='urban')
+ * - 'rural'  → Simulated rural nodes (node_type='rural')
+ * - 'api'    → Open-Meteo REST API node (source='rest-api')
+ * - null/all → Everything combined
  */
 function getLatestNodeData(source = null) {
-  if (!source || source === 'api') return latestNodeData;
+  // Build the combined dataset: in-memory MQTT/sim nodes + external API nodes
+  const apiNodes = getApiNodes();
+  const combined = { ...latestNodeData };
+  if (apiNodes) {
+    Object.values(apiNodes).forEach(node => {
+      combined[node.node_id] = node;
+    });
+  }
+
+  if (!source) return combined; // Return everything
+
+  if (source === 'api') {
+    // Return only nodes sourced from the external REST API
+    return Object.fromEntries(
+      Object.entries(combined).filter(([, n]) => n.source === 'rest-api')
+    );
+  }
+
+  // 'urban' or 'rural' — filter by node_type from MQTT/simulation only
   return Object.fromEntries(
-    Object.entries(latestNodeData).filter(([, node]) =>
-      node.node_type && node.node_type.toLowerCase().includes(source.toLowerCase())
+    Object.entries(latestNodeData).filter(([, n]) =>
+      n.node_type && n.node_type.toLowerCase().includes(source.toLowerCase())
     )
   );
 }
@@ -261,6 +292,8 @@ function getLatestNodeData(source = null) {
  * Get data for a specific node
  */
 function getNodeData(nodeId) {
+  const apiNodes = getApiNodes();
+  if (apiNodes && apiNodes[nodeId]) return apiNodes[nodeId];
   return latestNodeData[nodeId] || null;
 }
 
@@ -268,31 +301,32 @@ function getNodeData(nodeId) {
  * Get a summary of available data sources and their node counts
  */
 function getSourceSummary() {
-  const all = Object.values(latestNodeData);
+  const awsNodes = Object.values(latestNodeData);
+  const apiNodes = Object.values(getApiNodes());
   return [
     {
       id: 'urban',
       label: 'Urban Node',
       icon: '🏙️',
-      desc: 'City air & environment sensors',
-      count: all.filter(n => (n.node_type || '').toLowerCase().includes('urban')).length,
-      online: all.filter(n => (n.node_type || '').toLowerCase().includes('urban') && n.status === 'online').length
+      desc: 'Live AWS IoT Core hardware sensors',
+      count: awsNodes.filter(n => (n.node_type || '').toLowerCase().includes('urban')).length,
+      online: awsNodes.filter(n => (n.node_type || '').toLowerCase().includes('urban') && n.status === 'online').length
     },
     {
       id: 'rural',
       label: 'Rural Node',
       icon: '🌾',
       desc: 'Field water, soil & crop sensors',
-      count: all.filter(n => (n.node_type || '').toLowerCase().includes('rural')).length,
-      online: all.filter(n => (n.node_type || '').toLowerCase().includes('rural') && n.status === 'online').length
+      count: awsNodes.filter(n => (n.node_type || '').toLowerCase().includes('rural')).length,
+      online: awsNodes.filter(n => (n.node_type || '').toLowerCase().includes('rural') && n.status === 'online').length
     },
     {
       id: 'api',
       label: 'API Data',
       icon: '📡',
-      desc: 'All nodes via REST / cloud endpoint',
-      count: all.length,
-      online: all.filter(n => n.status === 'online').length
+      desc: 'Open-Meteo air quality REST API',
+      count: apiNodes.length,
+      online: apiNodes.filter(n => n.status === 'online').length
     }
   ];
 }
@@ -394,8 +428,13 @@ function handleAWSMessage(topic, message) {
   try {
     const payload = JSON.parse(message.toString());
     const parts = topic.split('/');
-    const nodeCategory = parts[2] || 'urban';
-    const nodeId = payload.node || nodeCategory;
+    // Stable node ID derived solely from topic path — never from packet_id.
+    // This ensures the same physical node always overwrites the same slot in
+    // latestNodeData, keeping counts stable (Urban: 1, Rural: 1, API: 2).
+    // e.g. "greenlink/environment/urban" → "AWS-URBAN"
+    const nodeCategory = parts[2] || parts[1] || 'device';
+    const baseId = (payload.node || nodeCategory).toUpperCase();
+    const nodeId = `AWS-${baseId}`;
 
     // Map AWS fields (temp -> temperature, hum -> humidity, lux -> light_intensity, gas -> raw gas value)
     const temperature = typeof payload.temp === 'number' ? payload.temp : (payload.temperature || 0);
@@ -408,10 +447,12 @@ function handleAWSMessage(topic, message) {
     // Calculate air quality index based on PM2.5 concentration using EPA standard
     const air_quality = calculateAQI(pm25);
 
+    const typeLabel = (payload.node || nodeCategory).replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     const mapped = {
       node_id: nodeId,
-      node_name: nodeId.charAt(0).toUpperCase() + nodeId.slice(1) + ' Node',
+      node_name: `AWS ${typeLabel} Node`,
       node_type: 'urban',
+      source: 'aws-iot',   // marks this as live hardware data
       status: 'online',
       battery: payload.battery || 100,
       rssi: payload.rssi || -50,
@@ -431,7 +472,13 @@ function handleAWSMessage(topic, message) {
 
     latestNodeData[nodeId] = mapped;
 
-    // Write mapped data to database
+    // Allow simulated and AWS nodes to coexist
+    // Object.keys(latestNodeData).forEach(key => {
+    //   if (key !== nodeId && latestNodeData[key].node_type === 'urban' && !key.startsWith('AWS-')) {
+    //     delete latestNodeData[key];
+    //   }
+    // });
+
     writeSensorData(nodeId, 'urban', {
       temperature,
       humidity,

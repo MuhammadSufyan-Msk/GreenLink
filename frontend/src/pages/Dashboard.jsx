@@ -27,9 +27,9 @@ function Dashboard({ theme, toggleTheme, dataSource, setDataSource }) {
   const dsDropdownRef = useRef(null);
 
   const DATA_SOURCES = [
-    { id: 'urban',  label: 'Urban Node',  icon: '🏙️',  desc: 'City air & environment sensors' },
+    { id: 'urban',  label: 'Urban Node',  icon: '🏙️',  desc: 'Live AWS IoT Core hardware sensors' },
     { id: 'rural',  label: 'Rural Node',  icon: '🌾',  desc: 'Field water, soil & crop sensors' },
-    { id: 'api',    label: 'API Data',    icon: '📡',  desc: 'External REST / cloud endpoint' },
+    { id: 'api',    label: 'API Data',    icon: '📡',  desc: 'Open-Meteo air quality REST API' },
   ];
 
   const activeDS = DATA_SOURCES.find(d => d.id === dataSource) || DATA_SOURCES[0];
@@ -102,7 +102,7 @@ function Dashboard({ theme, toggleTheme, dataSource, setDataSource }) {
   useEffect(() => {
     const unsub = wsService.subscribe('sensor_data', (msg) => {
       // Filter websocket events to match the currently selected source
-      if (dataSource && dataSource !== 'api') {
+      if (dataSource) {
         const isMatch = msg.node_type && msg.node_type.toLowerCase().includes(dataSource.toLowerCase());
         if (!isMatch) return;
       }
@@ -113,6 +113,7 @@ function Dashboard({ theme, toggleTheme, dataSource, setDataSource }) {
           node_id: msg.node_id,
           node_name: msg.data.node_name,
           node_type: msg.node_type,
+          source: msg.data.source || 'simulated',
           status: msg.data.status || 'online',
           battery: msg.data.battery,
           rssi: msg.data.rssi,
@@ -125,7 +126,9 @@ function Dashboard({ theme, toggleTheme, dataSource, setDataSource }) {
             soil_moisture: msg.data.soil_moisture,
             light_intensity: msg.data.light_intensity,
             pm25: msg.data.pm25,
-            air_quality: msg.data.air_quality
+            pm10: msg.data.pm10,
+            air_quality: msg.data.air_quality,
+            gas_resistance: msg.data.gas_resistance
           },
           ai: {
             filtered: msg.data.filtered,
@@ -137,7 +140,14 @@ function Dashboard({ theme, toggleTheme, dataSource, setDataSource }) {
           newNodes[existing] = { ...newNodes[existing], ...updated };
           return newNodes;
         }
-        return [...prev, updated];
+        // New node arriving — if it's a real AWS node, evict stale simulated nodes of the same type
+        let base = [...prev];
+        if (msg.node_id && msg.node_id.startsWith('AWS-')) {
+          base = base.filter(n =>
+            !(n.node_type === msg.node_type && !n.node_id.startsWith('AWS-'))
+          );
+        }
+        return [...base, updated];
       });
       setLastUpdate(new Date());
 
@@ -427,6 +437,18 @@ function Dashboard({ theme, toggleTheme, dataSource, setDataSource }) {
                       <span className={`status-dot ${node.status === 'online' ? 'online' : 'offline'}`} />
                       {node.node_name || node.node_id}
                     </div>
+                    {/* AWS IoT Live badge */}
+                    {node.source === 'aws-iot' && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.05em',
+                        color: '#22d3ee', background: 'rgba(34,211,238,0.12)',
+                        border: '1px solid rgba(34,211,238,0.3)',
+                        borderRadius: 4, padding: '1px 6px', marginTop: 4
+                      }}>
+                        📡 AWS IoT LIVE
+                      </span>
+                    )}
                   </div>
                   <span className={`node-card-type ${isRural ? 'rural' : ''}`}>
                     {isRural ? '🌾 Rural' : '🏙️ Urban'}
@@ -473,11 +495,52 @@ function Dashboard({ theme, toggleTheme, dataSource, setDataSource }) {
                       </span>
                     </div>
                   )}
+                  {s.pm10 !== undefined && (
+                    <div className="sensor-reading">
+                      <span className="sensor-reading-label">🌫️ PM10</span>
+                      <span className="sensor-reading-value" style={{ color: '#f59e0b' }}>
+                        {typeof s.pm10 === 'number' ? `${s.pm10.toFixed(1)}µg` : '--'}
+                      </span>
+                    </div>
+                  )}
                   {(s.air_quality !== undefined || (!isRural && node.status === 'offline')) && (
                     <div className="sensor-reading">
                       <span className="sensor-reading-label">💨 Air Quality</span>
                       <span className="sensor-reading-value" style={{ color: 'var(--color-air-quality)' }}>
                         {typeof s.air_quality === 'number' ? `${s.air_quality.toFixed(0)} AQI` : '--'}
+                      </span>
+                    </div>
+                  )}
+                  {/* EU AQI — Open-Meteo API only */}
+                  {s.eu_aqi !== undefined && (
+                    <div className="sensor-reading">
+                      <span className="sensor-reading-label">🇪🇺 EU AQI</span>
+                      <span className="sensor-reading-value" style={{ color: '#a78bfa' }}>
+                        {typeof s.eu_aqi === 'number' ? s.eu_aqi : '--'}
+                      </span>
+                    </div>
+                  )}
+                  {s.nitrogen_dioxide !== undefined && (
+                    <div className="sensor-reading">
+                      <span className="sensor-reading-label">🔵 NO₂</span>
+                      <span className="sensor-reading-value" style={{ color: '#60a5fa' }}>
+                        {typeof s.nitrogen_dioxide === 'number' ? `${s.nitrogen_dioxide.toFixed(2)} µg/m³` : '--'}
+                      </span>
+                    </div>
+                  )}
+                  {s.ozone !== undefined && (
+                    <div className="sensor-reading">
+                      <span className="sensor-reading-label">🟣 O₃</span>
+                      <span className="sensor-reading-value" style={{ color: '#c084fc' }}>
+                        {typeof s.ozone === 'number' ? `${s.ozone.toFixed(2)} µg/m³` : '--'}
+                      </span>
+                    </div>
+                  )}
+                  {s.carbon_monoxide !== undefined && (
+                    <div className="sensor-reading">
+                      <span className="sensor-reading-label">💀 CO</span>
+                      <span className="sensor-reading-value" style={{ color: '#fb7185' }}>
+                        {typeof s.carbon_monoxide === 'number' ? `${s.carbon_monoxide} µg/m³` : '--'}
                       </span>
                     </div>
                   )}

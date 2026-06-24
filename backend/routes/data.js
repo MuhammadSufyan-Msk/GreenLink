@@ -52,26 +52,36 @@ router.get('/live',
     const data = getLatestNodeData(source || null);
 
     const nodes = Object.values(data).map(node => ({
-      node_id: node.node_id,
+      node_id:   node.node_id,
       node_name: node.node_name,
       node_type: node.node_type,
-      status: node.status || 'unknown',
-      battery: node.battery,
-      rssi: node.rssi,
+      source:    node.source || 'simulated',
+      status:    node.status || 'unknown',
+      battery:   node.battery,
+      rssi:      node.rssi,
       last_seen: node.last_seen,
       sensors: {
-        temperature: node.temperature,
-        humidity: node.humidity,
-        pressure: node.pressure,
-        water_level: node.water_level,
-        soil_moisture: node.soil_moisture,
-        light_intensity: node.light_intensity,
-        pm25: node.pm25,
-        air_quality: node.air_quality
+        // Urban / AWS IoT fields
+        temperature:      node.temperature,
+        humidity:         node.humidity,
+        pressure:         node.pressure,
+        light_intensity:  node.light_intensity,
+        pm25:             node.pm25,
+        pm10:             node.pm10,
+        air_quality:      node.air_quality,
+        gas_resistance:   node.gas_resistance,
+        // Rural / simulation fields
+        water_level:      node.water_level,
+        soil_moisture:    node.soil_moisture,
+        // API Data (Open-Meteo) specific fields
+        eu_aqi:           node.eu_aqi,
+        nitrogen_dioxide: node.nitrogen_dioxide,
+        ozone:            node.ozone,
+        carbon_monoxide:  node.carbon_monoxide
       },
       ai: {
         filtered: node.filtered,
-        anomaly: node.anomaly
+        anomaly:  node.anomaly
       }
     }));
 
@@ -144,7 +154,7 @@ router.get('/history',
       const data = await getHistoricalData(resolvedNodeId, start, end, window);
 
       // Filter by source if provided and no explicit nodeId given
-      const filtered = (source && source !== 'api' && !nodeId)
+      const filtered = (source && !nodeId)
         ? data.filter(d => d.node_type && d.node_type.toLowerCase().includes(source.toLowerCase()))
         : data;
 
